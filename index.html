@@ -18,10 +18,12 @@
 
   /* HEADER */
   .header { background: linear-gradient(135deg, #1B5E20, #388E3C); padding: 20px 16px 14px; color: #fff; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .header-sub { font-size: 11px; letter-spacing: 2px; opacity: 0.8; text-transform: uppercase; margin-bottom: 4px; }
   .header-title { font-size: 22px; font-weight: bold; }
   .header select { margin-top: 12px; width: 100%; padding: 8px 12px; border-radius: 10px; border: none; font-size: 14px; background: rgba(255,255,255,0.2); color: #fff; font-weight: bold; }
   .header select option { color: #222; background: #fff; }
+  .sync-btn { flex-shrink: 0; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); color: #fff; font-size: 11px; font-weight: bold; padding: 7px 10px; border-radius: 10px; cursor: pointer; white-space: nowrap; margin-top: 2px; }
 
   /* NAV */
   .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid #E8F5E9; display: flex; justify-content: space-around; padding: 6px 0 12px; z-index: 100; }
@@ -177,9 +179,30 @@
 
 <!-- HEADER -->
 <div class="header">
-  <div class="header-sub">Mon entreprise</div>
-  <div class="header-title">Suivi Entreprise 🌿</div>
+  <div class="header-top">
+    <div>
+      <div class="header-sub">Mon entreprise</div>
+      <div class="header-title">Suivi Entreprise 🌿</div>
+    </div>
+    <button class="sync-btn" id="btn-sync" onclick="ouvrirModalSync()">☁️ <span id="sync-statut">Non lié</span></button>
+  </div>
   <select id="selectMois" onchange="changerMois(this.value)"></select>
+</div>
+
+<!-- MODAL SYNCHRONISATION -->
+<div class="modal-overlay" id="modal-sync-overlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>☁️ Synchronisation</span>
+      <button class="modal-close" onclick="fermerModalSync()">✕</button>
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:14px;line-height:1.5">Utilise le même code secret sur chaque appareil (téléphone, ordinateur) pour voir les mêmes données partout. Choisis un code que tu es seul(e) à connaître.</p>
+    <label class="form-label">Code secret</label>
+    <input class="form-input" id="sync-code-input" placeholder="Ex : jardin-vert-247">
+    <button class="btn-main" style="background:linear-gradient(135deg,#1565C0,#1976D2)" onclick="validerCodeSync()">Activer la synchronisation</button>
+    <button class="btn-secondary" onclick="resynchroniserManuellement()">🔄 Resynchroniser maintenant</button>
+    <div id="sync-info" style="font-size:12px;color:#888;margin-top:10px;line-height:1.5"></div>
+  </div>
 </div>
 
 <!-- PAGES -->
@@ -372,6 +395,10 @@
   </button>
 </nav>
 
+<!-- FIREBASE (synchronisation cloud) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
 <script>
 // ── DONNÉES ──
 let chantiers = JSON.parse(localStorage.getItem('chantiers') || '[]');
@@ -390,10 +417,130 @@ let longPressTimer = null;
 let calAnnee  = new Date().getFullYear();
 let calMois   = new Date().getMonth(); // 0-indexed
 
+// ── SYNCHRONISATION CLOUD (Firebase) ──
+// 1) Crée un projet gratuit sur https://console.firebase.google.com
+// 2) Active "Firestore Database" (mode test)
+// 3) Ajoute une appli Web et colle ta config ci-dessous à la place des "COLLER_ICI"
+const firebaseConfig = {
+  apiKey: "AIzaSyCak0KjSzdgEehtgw8WtiOotPniSHvb5q0",
+  authDomain: "suivi-ep-cl4ud3.firebaseapp.com",
+  projectId: "suivi-ep-cl4ud3",
+  storageBucket: "suivi-ep-cl4ud3.firebasestorage.app",
+  messagingSenderId: "837454605437",
+  appId: "1:837454605437:web:ac8c09df2b10ebe98e9514"
+};
+
+let syncDoc = null;
+let syncActif = false;
+let syncEnCours = false;
+let syncPret = false;
+
+function firebaseConfigValide() {
+  return firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLLER_ICI';
+}
+
+function initSync() {
+  if (!firebaseConfigValide() || typeof firebase === 'undefined') return;
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    syncPret = true;
+    const code = localStorage.getItem('codeSync');
+    majBoutonSync();
+    if (code) {
+      syncDoc = firebase.firestore().collection('suivi-entreprise').doc(code);
+      syncActif = true;
+      chargerDepuisCloud();
+    }
+  } catch (e) {
+    console.warn('Sync indisponible', e);
+  }
+}
+
+function majBoutonSync() {
+  const code = localStorage.getItem('codeSync');
+  const el = document.getElementById('sync-statut');
+  if (!el) return;
+  el.textContent = code ? 'Synchronisé' : 'Non lié';
+}
+
+function definirCodeSync(code) {
+  if (!code || !code.trim() || !syncPret) return;
+  localStorage.setItem('codeSync', code.trim());
+  syncDoc = firebase.firestore().collection('suivi-entreprise').doc(code.trim());
+  syncActif = true;
+  majBoutonSync();
+  chargerDepuisCloud();
+}
+
+function chargerDepuisCloud() {
+  if (!syncDoc) return;
+  const info = document.getElementById('sync-info');
+  if (info) info.textContent = '🔄 Synchronisation en cours...';
+  syncDoc.get().then(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      chantiers = data.chantiers || [];
+      charges   = data.charges   || [];
+      materiel  = data.materiel  || [];
+      localStorage.setItem('chantiers', JSON.stringify(chantiers));
+      localStorage.setItem('charges', JSON.stringify(charges));
+      localStorage.setItem('materiel', JSON.stringify(materiel));
+      renderDashboard();
+      if (info) info.textContent = '✅ Synchronisé avec succès.';
+    } else {
+      // Premier appareil à utiliser ce code : on envoie les données actuelles de cet appareil
+      envoyerVersCloud();
+      if (info) info.textContent = '✅ Code activé. Utilise ce même code sur ton autre appareil.';
+    }
+  }).catch(() => {
+    if (info) info.textContent = '⚠️ Impossible de synchroniser (vérifie ta connexion).';
+  });
+}
+
+function envoyerVersCloud() {
+  if (!syncDoc || syncEnCours) return;
+  syncEnCours = true;
+  syncDoc.set({
+    chantiers, charges, materiel,
+    misAJour: new Date().toISOString()
+  }).catch(() => {}).finally(() => { syncEnCours = false; });
+}
+
+function ouvrirModalSync() {
+  const code = localStorage.getItem('codeSync') || '';
+  document.getElementById('sync-code-input').value = code;
+  const info = document.getElementById('sync-info');
+  if (!firebaseConfigValide()) {
+    info.textContent = '⚠️ La synchronisation n\'est pas encore configurée sur cette appli.';
+  } else {
+    info.textContent = code
+      ? 'Code actif : utilise ce même code sur tes autres appareils pour voir les mêmes données.'
+      : 'Choisis un code unique (ex : un mot + un chiffre), puis utilise-le ensuite sur ton ordinateur.';
+  }
+  document.getElementById('modal-sync-overlay').classList.add('open');
+}
+
+function fermerModalSync() {
+  document.getElementById('modal-sync-overlay').classList.remove('open');
+}
+
+function validerCodeSync() {
+  const code = document.getElementById('sync-code-input').value.trim();
+  if (!code) return;
+  definirCodeSync(code);
+  setTimeout(fermerModalSync, 1000);
+}
+
+function resynchroniserManuellement() {
+  if (!syncDoc) { ouvrirModalSync(); return; }
+  chargerDepuisCloud();
+}
+
 function sauvegarder() {
   localStorage.setItem('chantiers', JSON.stringify(chantiers));
   localStorage.setItem('charges',   JSON.stringify(charges));
   localStorage.setItem('materiel',  JSON.stringify(materiel));
+  if (syncActif) envoyerVersCloud();
 }
 
 function moisCourant() {
@@ -1274,6 +1421,8 @@ function renderMateriel() {
 
 // ── INIT ──
 renderDashboard();
+majBoutonSync();
+initSync();
 
 // ── PWA : SERVICE WORKER (mode hors-ligne) ──
 if ('serviceWorker' in navigator) {
