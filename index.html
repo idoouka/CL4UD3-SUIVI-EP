@@ -14,7 +14,7 @@
 <title>Suivi Entreprise 🌿</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body { font-family: Arial, sans-serif; background: #F1F8E9; max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; }
+  body { font-family: Arial, sans-serif; background: #F1F8E9; max-width: clamp(480px, 92vw, 1500px); margin: 0 auto; min-height: 100vh; padding-bottom: 90px; }
 
   /* HEADER */
   .header { background: linear-gradient(135deg, #1B5E20, #388E3C); padding: 20px 16px 14px; color: #fff; }
@@ -26,7 +26,7 @@
   .sync-btn { flex-shrink: 0; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); color: #fff; font-size: 11px; font-weight: bold; padding: 7px 10px; border-radius: 10px; cursor: pointer; white-space: nowrap; margin-top: 2px; }
 
   /* NAV */
-  .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid #E8F5E9; display: flex; justify-content: space-around; padding: 6px 0 12px; z-index: 100; }
+  .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: clamp(480px, 92vw, 1500px); background: #fff; border-top: 1px solid #E8F5E9; display: flex; justify-content: space-around; padding: 8px 0 14px; z-index: 100; }
   .nav-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; cursor: pointer; padding: 6px 5px; border-radius: 10px; }
   .nav-btn .icon { font-size: 18px; }
   .nav-btn .lbl { font-size: 8.5px; color: #999; }
@@ -84,16 +84,44 @@
   /* MATÉRIEL */
   .mat-badge { font-size: 11px; font-weight: bold; padding: 3px 9px; border-radius: 8px; display: inline-block; margin-top: 4px; }
 
-  /* ADAPTATION GRAND ÉCRAN (ORDINATEUR) */
+  /* ADAPTATION ÉCRAN MOYEN (TABLETTE) */
   @media (min-width: 700px) {
-    body { max-width: 900px; }
-    .nav { max-width: 900px; }
     .modal-box { max-width: 620px; border-radius: 20px; margin: 40px auto; max-height: 85vh; }
     .modal-overlay { align-items: center; }
     .stats-grid { grid-template-columns: repeat(4, 1fr); }
     .header-title { font-size: 26px; }
     .card { padding: 16px; }
     .card-name { font-size: 16px; }
+  }
+
+  /* ADAPTATION GRAND ÉCRAN (ORDINATEUR) */
+  @media (min-width: 1000px) {
+    .page { padding: 28px 36px; }
+    .header { padding: 30px 36px 20px; }
+    .header-title { font-size: 30px; }
+    .header-sub { font-size: 13px; }
+    .sync-btn { font-size: 13px; padding: 9px 14px; }
+    .header select { padding: 12px 16px; font-size: 16px; }
+    .benefice-card { padding: 30px 26px; }
+    .benefice-card .b-val { font-size: 46px; }
+    .benefice-card .b-label { font-size: 14px; }
+    .stat-card { padding: 20px 18px; }
+    .stat-card .s-val { font-size: 26px; }
+    .stat-card .s-label { font-size: 12.5px; }
+    .card { padding: 20px 22px; }
+    .card-name { font-size: 18px; }
+    .card-sub { font-size: 13.5px; }
+    .card-montant { font-size: 19px; }
+    .btn-paye { font-size: 13px; padding: 6px 12px; }
+    .btn-edit, .btn-delete { font-size: 13px; padding: 8px 14px; }
+    .section-title { font-size: 15px; }
+
+    /* NAV agrandie */
+    .nav { padding: 14px 0 18px; }
+    .nav-btn { padding: 10px 18px; gap: 5px; }
+    .nav-btn .icon { font-size: 28px; }
+    .nav-btn .lbl { font-size: 13px; }
+    body { padding-bottom: 110px; }
   }
 
   /* CHIPS TYPE DE PRESTATION */
