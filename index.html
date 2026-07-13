@@ -500,6 +500,7 @@ let syncDoc = null;
 let syncActif = false;
 let syncEnCours = false;
 let syncPret = false;
+let unsubscribeSync = null;
 
 function firebaseConfigValide() {
   return firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLLER_ICI';
@@ -515,7 +516,7 @@ function initSync() {
     if (code) {
       syncDoc = firebase.firestore().collection('suivi-entreprise').doc(code);
       syncActif = true;
-      chargerDepuisCloud();
+      demarrerEcouteTempsReel();
     }
   } catch (e) {
     console.warn('Sync indisponible', e);
@@ -536,6 +537,56 @@ function definirCodeSync(code) {
   syncActif = true;
   majBoutonSync();
   chargerDepuisCloud();
+  demarrerEcouteTempsReel();
+}
+
+// ── ÉCOUTE EN TEMPS RÉEL ──
+// Reste connecté à Firestore en permanence : dès qu'un autre appareil
+// enregistre une modification, elle apparaît ici automatiquement,
+// sans avoir besoin de rafraîchir la page.
+function demarrerEcouteTempsReel() {
+  if (!syncDoc) return;
+  if (unsubscribeSync) unsubscribeSync();
+  unsubscribeSync = syncDoc.onSnapshot(snap => {
+    if (!snap.exists) return;
+    if (snap.metadata.hasPendingWrites) return; // écho de notre propre écriture : on ignore
+    const data = snap.data();
+    const misAJourCloud = data.misAJour || null;
+    const misAJourLocal = localStorage.getItem('misAJour') || null;
+    if (misAJourLocal && misAJourCloud && new Date(misAJourLocal) >= new Date(misAJourCloud)) {
+      return; // nos données locales sont déjà à jour (ou plus récentes)
+    }
+    chantiers = data.chantiers || [];
+    charges   = data.charges   || [];
+    materiel  = data.materiel  || [];
+    localStorage.setItem('chantiers', JSON.stringify(chantiers));
+    localStorage.setItem('charges', JSON.stringify(charges));
+    localStorage.setItem('materiel', JSON.stringify(materiel));
+    localStorage.setItem('misAJour', misAJourCloud || new Date().toISOString());
+    rafraichirPageActive();
+    signalerMiseAJourRecue();
+  }, err => {
+    console.warn('Écoute temps réel interrompue', err);
+  });
+}
+
+function rafraichirPageActive() {
+  const active = document.querySelector('.page.active');
+  if (!active) return;
+  const id = active.id.replace('page-', '');
+  if (id === 'dashboard')  renderDashboard();
+  if (id === 'chantiers')  renderHistChantiers();
+  if (id === 'charges')    renderHistCharges();
+  if (id === 'calendrier') renderCalendrier();
+  if (id === 'materiel')   renderMateriel();
+}
+
+function signalerMiseAJourRecue() {
+  const el = document.getElementById('sync-statut');
+  if (!el) return;
+  const texteAvant = el.textContent;
+  el.textContent = 'Mis à jour ✓';
+  setTimeout(() => { el.textContent = 'Synchronisé'; }, 2500);
 }
 
 function chargerDepuisCloud() {
