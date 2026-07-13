@@ -545,12 +545,24 @@ function chargerDepuisCloud() {
   syncDoc.get().then(doc => {
     if (doc.exists) {
       const data = doc.data();
+      const misAJourCloud = data.misAJour || null;
+      const misAJourLocal = localStorage.getItem('misAJour') || null;
+
+      // Si les données locales sont plus récentes que le cloud (ex : ajout fait
+      // hors connexion), on les envoie au cloud au lieu de les écraser.
+      if (misAJourLocal && misAJourCloud && new Date(misAJourLocal) > new Date(misAJourCloud)) {
+        envoyerVersCloud();
+        if (info) info.textContent = '✅ Tes données locales étaient plus récentes, elles ont été envoyées en ligne.';
+        return;
+      }
+
       chantiers = data.chantiers || [];
       charges   = data.charges   || [];
       materiel  = data.materiel  || [];
       localStorage.setItem('chantiers', JSON.stringify(chantiers));
       localStorage.setItem('charges', JSON.stringify(charges));
       localStorage.setItem('materiel', JSON.stringify(materiel));
+      localStorage.setItem('misAJour', misAJourCloud || new Date().toISOString());
       renderDashboard();
       if (info) info.textContent = '✅ Synchronisé avec succès.';
     } else {
@@ -606,6 +618,7 @@ function sauvegarder() {
   localStorage.setItem('chantiers', JSON.stringify(chantiers));
   localStorage.setItem('charges',   JSON.stringify(charges));
   localStorage.setItem('materiel',  JSON.stringify(materiel));
+  localStorage.setItem('misAJour',  new Date().toISOString());
   if (syncActif) envoyerVersCloud();
 }
 
