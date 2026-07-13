@@ -210,6 +210,19 @@
   /* BTN PDF */
   .btn-pdf { width: 100%; padding: 14px; background: linear-gradient(135deg, #1565C0, #1976D2); color: #fff; border: none; border-radius: 14px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .btn-pdf:active { opacity: 0.9; }
+  .btn-recap { width: 100%; padding: 14px; background: linear-gradient(135deg, #F57C00, #FB8C00); color: #fff; border: none; border-radius: 14px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-recap:active { opacity: 0.9; }
+
+  /* RÉCAP MULTI-MOIS */
+  .counter-bar { background: #E8F5E9; border-radius: 10px; padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: bold; color: #1B5E20; margin-bottom: 12px; }
+  .counter-bar .link-btn { background: none; border: none; color: #E65100; font-weight: bold; font-size: 12px; cursor: pointer; }
+  .periode-badge { background: #FFF3E0; color: #E65100; font-size: 12px; font-weight: bold; padding: 8px 12px; border-radius: 10px; margin-bottom: 12px; text-align: center; }
+  .chart-card { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .chart-title { font-size: 12px; font-weight: bold; color: #555; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: #777; margin-top: 8px; justify-content: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .btn-retour { background: #E8F5E9; border: none; color: #1B5E20; font-weight: bold; font-size: 14px; padding: 8px 12px; border-radius: 10px; cursor: pointer; }
 
   @media print {
     .nav, .btn-pdf, .btn-voir-plus, .card-actions, .modal-overlay { display: none !important; }
@@ -255,6 +268,26 @@
   </div>
 </div>
 
+<!-- MODAL SÉLECTEUR MULTI-MOIS (RÉCAP) -->
+<div class="modal-overlay" id="modal-recap-overlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>📊 Choisis 2 à 12 mois</span>
+      <button class="modal-close" onclick="fermerSelecteurRecap()">✕</button>
+    </div>
+    <div class="year-nav">
+      <button onclick="changerAnneeRecap(-1)">‹</button>
+      <div class="yr" id="recap-annee">2026</div>
+      <button onclick="changerAnneeRecap(1)">›</button>
+    </div>
+    <div class="month-grid" id="recap-grid"></div>
+    <div class="counter-bar">
+      <span id="recap-counter-txt">0 mois sélectionné</span>
+      <button class="link-btn" onclick="effacerSelectionRecap()">Effacer tout</button>
+    </div>
+    <button class="btn-recap" id="recap-btn-valider" onclick="validerSelectionRecap()" disabled style="opacity:0.5">Voir le récap →</button>
+  </div>
+</div>
 <!-- MODAL SYNCHRONISATION -->
 <div class="modal-overlay" id="modal-sync-overlay">
   <div class="modal-box">
@@ -305,6 +338,7 @@
 
   <!-- BTN PDF -->
   <button class="btn-pdf" onclick="telechargerPDF()">📄 Télécharger le tableau de bord (PDF)</button>
+  <button class="btn-recap" onclick="ouvrirSelecteurRecap()">📊 Récap multi-mois</button>
 
   <div class="section-title" style="color:#388E3C">Derniers chantiers</div>
   <div id="dash-chantiers"></div>
@@ -406,6 +440,14 @@
   </div>
   <div id="materiel-sub" style="font-size:12px;color:#888;margin-bottom:10px"></div>
   <div id="materiel-list"></div>
+</div>
+
+<div class="page" id="page-recap">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <button class="btn-retour" onclick="goTo('dashboard')">← Retour</button>
+    <div class="section-title" style="margin:0;color:#E65100">Récap multi-mois</div>
+  </div>
+  <div id="recap-content"></div>
 </div>
 
 <!-- MODAL AJOUT / ÉDITION MATÉRIEL -->
@@ -785,6 +827,218 @@ function rendreGrilleMois() {
 function choisirMoisPicker(val) {
   changerMois(val);
   fermerSelecteurMois();
+}
+
+// ── RÉCAP MULTI-MOIS ──
+let recapSelection = new Set();
+let recapAnneePicker = new Date().getFullYear();
+
+function ouvrirSelecteurRecap() {
+  recapAnneePicker = parseInt(moisActuel.split('-')[0]);
+  rendreGrilleRecap();
+  document.getElementById('modal-recap-overlay').classList.add('open');
+}
+
+function fermerSelecteurRecap() {
+  document.getElementById('modal-recap-overlay').classList.remove('open');
+}
+
+function changerAnneeRecap(delta) {
+  recapAnneePicker += delta;
+  rendreGrilleRecap();
+}
+
+function rendreGrilleRecap() {
+  document.getElementById('recap-annee').textContent = recapAnneePicker;
+  const grid = document.getElementById('recap-grid');
+  grid.innerHTML = NOMS_MOIS.map((nom, i) => {
+    const numMois = i + 1;
+    const val = `${recapAnneePicker}-${String(numMois).padStart(2,'0')}`;
+    const estSel = recapSelection.has(val);
+    return `<button class="${estSel ? 'active' : ''}" onclick="toggleMoisRecap('${val}')">${nom}</button>`;
+  }).join('');
+  majCompteurRecap();
+}
+
+function toggleMoisRecap(val) {
+  if (recapSelection.has(val)) {
+    recapSelection.delete(val);
+  } else {
+    if (recapSelection.size >= 12) return; // maximum atteint
+    recapSelection.add(val);
+  }
+  rendreGrilleRecap();
+}
+
+function effacerSelectionRecap() {
+  recapSelection.clear();
+  rendreGrilleRecap();
+}
+
+function majCompteurRecap() {
+  const n = recapSelection.size;
+  document.getElementById('recap-counter-txt').textContent = `${n} mois sélectionné${n>1?'s':''}`;
+  const btn = document.getElementById('recap-btn-valider');
+  const ok = n >= 2 && n <= 12;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.5';
+}
+
+function validerSelectionRecap() {
+  if (recapSelection.size < 2) return;
+  const moisListe = [...recapSelection].sort();
+  fermerSelecteurRecap();
+  afficherRecap(moisListe);
+  goTo('recap');
+}
+
+function calculerDonneesRecap(moisListe) {
+  return moisListe.map(m => {
+    const chanM  = chantiers.filter(c => c.dateISO?.startsWith(m));
+    const chargM = charges.filter(c => c.dateISO?.startsWith(m));
+    const facture  = chanM.reduce((s,c) => s + c.montant, 0);
+    const encaisse = chanM.filter(c => c.paye === 'Oui').reduce((s,c) => s + c.montant, 0);
+    const chargesTot = chargM.reduce((s,c) => s + c.montant, 0);
+    return { mois: m, facture, encaisse, charges: chargesTot, benefice: encaisse - chargesTot };
+  });
+}
+
+function construireGraphiqueBarres(parMois) {
+  const n = parMois.length;
+  const maxVal = Math.max(1, ...parMois.map(m => Math.max(m.encaisse, m.charges)));
+  const W = 300, H = 130, padBottom = 22, padTop = 10;
+  const usableH = H - padBottom - padTop;
+  const groupW = W / n;
+  const barW = Math.max(5, Math.min(18, groupW / 2 - 4));
+
+  let bars = '';
+  parMois.forEach((m, i) => {
+    const xGroup = i * groupW;
+    const hEnc = m.encaisse > 0 ? Math.max(2, (m.encaisse / maxVal) * usableH) : 0;
+    const hChg = m.charges  > 0 ? Math.max(2, (m.charges  / maxVal) * usableH) : 0;
+    const xEnc = xGroup + groupW/2 - barW - 2;
+    const xChg = xGroup + groupW/2 + 2;
+    const yEnc = H - padBottom - hEnc;
+    const yChg = H - padBottom - hChg;
+    const numMois = parseInt(m.mois.split('-')[1]);
+    const labelMois = NOMS_MOIS[numMois - 1];
+    bars += `<rect x="${xEnc}" y="${yEnc}" width="${barW}" height="${hEnc}" rx="3" fill="#43A047"/>`;
+    bars += `<rect x="${xChg}" y="${yChg}" width="${barW}" height="${hChg}" rx="3" fill="#E57373"/>`;
+    bars += `<text x="${xGroup + groupW/2}" y="${H-6}" font-size="9" fill="#999" text-anchor="middle">${labelMois}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="130" preserveAspectRatio="xMidYMid meet">
+    <line x1="0" y1="${H-padBottom}" x2="${W}" y2="${H-padBottom}" stroke="#eee" stroke-width="1"/>
+    ${bars}
+  </svg>`;
+}
+
+function afficherRecap(moisListe) {
+  const parMois = calculerDonneesRecap(moisListe);
+  const totalFacture  = parMois.reduce((s,m) => s + m.facture, 0);
+  const totalEncaisse = parMois.reduce((s,m) => s + m.encaisse, 0);
+  const totalCharges  = parMois.reduce((s,m) => s + m.charges, 0);
+  const totalBenefice = totalEncaisse - totalCharges;
+  const enAttente     = totalFacture - totalEncaisse;
+  const moyenneMois   = Math.round(totalBenefice / parMois.length);
+  const periodeLabel  = moisListe.map(m => moisLabel(m)).join(', ');
+  const couleurBenef  = totalBenefice >= 0 ? 'linear-gradient(135deg,#1B5E20,#388E3C)' : 'linear-gradient(135deg,#B71C1C,#E53935)';
+
+  document.getElementById('recap-content').innerHTML = `
+    <div class="periode-badge">${periodeLabel}</div>
+    <div class="benefice-card" style="background:${couleurBenef}">
+      <div class="b-label">Bénéfice net total</div>
+      <div class="b-val">${formaterFr(totalBenefice)}</div>
+      <div class="b-sub">${parMois.length} mois · moyenne ${formaterFr(moyenneMois)}/mois</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Encaissé vs Charges</div>
+      ${construireGraphiqueBarres(parMois)}
+      <div class="legend">
+        <span><span class="dot" style="background:#43A047"></span>Encaissé</span>
+        <span><span class="dot" style="background:#E57373"></span>Charges</span>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card" style="background:#C8E6C9"><div class="s-label" style="color:#1B5E20">Facturé</div><div class="s-val" style="color:#1B5E20">${formaterFr(totalFacture)}</div></div>
+      <div class="stat-card" style="background:#A5D6A7"><div class="s-label" style="color:#2E7D32">Encaissé</div><div class="s-val" style="color:#2E7D32">${formaterFr(totalEncaisse)}</div></div>
+      <div class="stat-card" style="background:#FFCDD2"><div class="s-label" style="color:#B71C1C">Charges</div><div class="s-val" style="color:#B71C1C">${formaterFr(totalCharges)}</div></div>
+      <div class="stat-card" style="background:#FFE0B2"><div class="s-label" style="color:#E65100">En attente</div><div class="s-val" style="color:#E65100">${formaterFr(enAttente)}</div></div>
+    </div>
+    <button class="btn-pdf" style="margin-top:12px" onclick='telechargerPDFRecap(${JSON.stringify(moisListe)})'>📄 Télécharger ce récap (PDF)</button>
+  `;
+}
+
+function telechargerPDFRecap(moisListe) {
+  const win = window.open('', '_blank');
+  const parMois = calculerDonneesRecap(moisListe);
+  const totalFacture  = parMois.reduce((s,m) => s + m.facture, 0);
+  const totalEncaisse = parMois.reduce((s,m) => s + m.encaisse, 0);
+  const totalCharges  = parMois.reduce((s,m) => s + m.charges, 0);
+  const totalBenefice = totalEncaisse - totalCharges;
+  const enAttente     = totalFacture - totalEncaisse;
+  const moyenneMois   = Math.round(totalBenefice / parMois.length);
+  const periodeLabel  = moisListe.map(m => moisLabel(m)).join(', ');
+  const couleurBenef  = totalBenefice >= 0 ? '#1B5E20' : '#B71C1C';
+  const svg = construireGraphiqueBarres(parMois);
+
+  const ligneMoisHTML = parMois.map(m => `
+    <tr>
+      <td>${moisLabel(m.mois)}</td>
+      <td style="text-align:right;color:#2E7D32;font-weight:bold">${formaterFr(m.encaisse)}</td>
+      <td style="text-align:right;color:#B71C1C;font-weight:bold">${formaterFr(m.charges)}</td>
+      <td style="text-align:right;font-weight:bold">${formaterFr(m.benefice)}</td>
+    </tr>`).join('');
+
+  win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+  <meta charset="UTF-8">
+  <title>Récap multi-mois</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; color: #222; }
+    h1 { color: #1B5E20; margin-bottom: 4px; }
+    .sub { color: #888; font-size: 13px; margin-bottom: 24px; }
+    .benefice { background: ${couleurBenef}; color: #fff; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px; }
+    .benefice .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
+    .benefice .val { font-size: 36px; font-weight: bold; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .sc { border-radius: 10px; padding: 12px; }
+    .sc .sl { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .sc .sv { font-size: 18px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { background: #f5f5f5; padding: 8px 10px; text-align: left; font-size: 12px; color: #555; text-transform: uppercase; }
+    td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; margin-top: 20px; }
+    .chart-wrap { margin-bottom: 20px; max-width: 500px; }
+    @media print { body { margin: 15px; } }
+  </style>
+  </head><body>
+  <h1>🌿 Suivi Entreprise</h1>
+  <div class="sub">Récap multi-mois · ${periodeLabel} · Imprimé le ${new Date().toLocaleDateString('fr-FR')}</div>
+
+  <div class="benefice">
+    <div class="lbl">Bénéfice net total (${parMois.length} mois)</div>
+    <div class="val">${formaterFr(totalBenefice)}</div>
+  </div>
+
+  <div class="stats">
+    <div class="sc" style="background:#C8E6C9"><div class="sl" style="color:#1B5E20">Facturé</div><div class="sv" style="color:#1B5E20">${formaterFr(totalFacture)}</div></div>
+    <div class="sc" style="background:#A5D6A7"><div class="sl" style="color:#2E7D32">Encaissé ✓</div><div class="sv" style="color:#2E7D32">${formaterFr(totalEncaisse)}</div></div>
+    <div class="sc" style="background:#FFCDD2"><div class="sl" style="color:#B71C1C">Charges</div><div class="sv" style="color:#B71C1C">${formaterFr(totalCharges)}</div></div>
+    <div class="sc" style="background:#FFE0B2"><div class="sl" style="color:#E65100">En attente</div><div class="sv" style="color:#E65100">${formaterFr(enAttente)}</div></div>
+  </div>
+
+  <h2>Évolution mensuelle</h2>
+  <div class="chart-wrap">${svg}</div>
+
+  <h2>Détail par mois</h2>
+  <table><thead><tr><th>Mois</th><th style="text-align:right">Encaissé</th><th style="text-align:right">Charges</th><th style="text-align:right">Bénéfice net</th></tr></thead>
+  <tbody>${ligneMoisHTML}</tbody></table>
+
+  <p style="color:#888;font-size:12px">Moyenne mensuelle : <b>${formaterFr(moyenneMois)}</b></p>
+
+  <script>window.onload = function() { window.print(); }<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 // ── DASHBOARD ──
